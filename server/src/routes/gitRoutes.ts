@@ -2,6 +2,7 @@ import express from 'express'
 import { docker } from '../index.js'
 import { execInRunner, generateRandomUsername, generateShortId, JobManager } from '../helpers/helpers.js'
 import { Octokit } from 'octokit'
+import crypto from 'crypto'
 
 const app = express()
 export const gitRouter = express.Router()
@@ -103,3 +104,28 @@ gitRouter.post('/git/clone/:workspaceName', async (req, res) => {
     }
 })
 
+gitRouter.post(
+  "/git/webhook",
+  express.raw({ type: "application/json" }),
+  (req, res) => {
+    const signature = req.headers["x-hub-signature-256"];
+    const secret = process.env.GITHUB_WEBHOOK_SECRET!;
+
+    const expected = 
+      "sha256=" +
+      crypto.createHmac("sha256", secret).update(req.body).digest("hex");
+
+    if (signature !== expected) {
+      console.log("❌ Invalid signature");
+      return res.status(401).send("Invalid signature");
+    }
+
+    const event = req.headers["x-github-event"];
+    const payload = JSON.parse(req.body.toString());
+
+    console.log("Event:", event);
+    console.log("Payload:", payload);
+
+    res.send("OK");
+  }
+);

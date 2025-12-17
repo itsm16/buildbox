@@ -30,6 +30,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import Link from "next/link"
+import { useSession } from "@/lib/auth-client"
 
 const data = {
   user: {
@@ -56,7 +57,7 @@ const data = {
     },
     {
       title: "Github Integration",
-      url: "/dashboard/ci-cd-test",
+      url: "/dashboard/ai-test",
       icon: Boxes,
       isActive: true,
 
@@ -171,6 +172,8 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const {data: res} = useSession();
+
   return (
     <Sidebar variant="inset" {...props}>
       <SidebarHeader>
@@ -196,7 +199,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={res?.user} />
       </SidebarFooter>
     </Sidebar>
   )

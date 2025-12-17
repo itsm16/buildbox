@@ -73,6 +73,32 @@ export async function getUserRequest(userId : string, workspaceName : string) {
     }
 }
 
+// job
+export async function createJob({requestId, previewUrl, cloneUrl, repository}: {
+    requestId: string,
+    previewUrl: string,
+    cloneUrl: string,
+    repository: string
+}) {
+    try {
+        const response = await post("user/job", {requestId, previewUrl, cloneUrl, repository})
+        return response.data;
+    } catch (error) {
+        console.error('Error creating job:', error);
+        throw error;
+    }
+}
+
+export async function getJobs(userId: string) {
+    try {
+        const res = await get(`user/${userId}/jobs`)
+        return res.data;
+    } catch (error) {
+        console.error('Error getting jobs:', error);
+        throw error;
+    }
+}
+
 export async function checkJobExists(workspaceName : string) {
     try {
         const response = await axios.get(`${API_BASE_URL}/api/project/job-exists/${workspaceName}`);

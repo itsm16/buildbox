@@ -9,7 +9,7 @@ import { LogViewer } from '@patternfly/react-log-viewer'
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import MarkdownPreview from '@uiw/react-markdown-preview';
-import { checkJobExists, connectToRunner, getSingleRepo, getUserRequest, mkdirAndCloneRepo, runBuild } from "@/helpers/queries";
+import { checkJobExists, connectToRunner, createJob, getSingleRepo, getUserRequest, mkdirAndCloneRepo, runBuild } from "@/helpers/queries";
 import { useSession } from "@/lib/auth-client";
 
 export default function page() {
@@ -23,7 +23,7 @@ export default function page() {
     const jobId = workspaceName.split("-").pop();
     const { data: session } = useSession();
     const user = session?.user;
-    const { data: jobData, isLoading: jobLoading } = useQuery({ queryKey: ['jobExists'], queryFn: () => checkJobExists(workspaceName) })
+    const { data: jobData, isLoading: jobLoading } = useQuery({ queryKey: ['jobExists'], queryFn: () => checkJobExists(workspaceName)})
     const { data: requestData, isLoading: requestLoading } = useQuery({
         queryKey: ['request'], queryFn: () => {
             if (!user) return { request: null };
@@ -34,9 +34,14 @@ export default function page() {
     const { data: userRepo } = useQuery({ queryFn: () => getSingleRepo({ username: user?.name as string, repo: requestData?.request?.repository }), enabled: !!requestData?.request?.repository, queryKey: [""] });
     const type = requestData?.request?.type?.toLowerCase()
     const { mutate: dirAndClone, isPending: clonePending, data: cloneData } = useMutation({ mutationFn: mkdirAndCloneRepo })
-    const { mutate: build, isPending: buildPending } = useMutation({ mutationFn: runBuild })
+    const { mutate: build, isPending: buildPending } = useMutation({ mutationFn: runBuild, onSuccess: ()=>{
+        const request = requestData?.request
+        createJob({cloneUrl: request?.url, previewUrl: liveUrl, repository: request?.repository, requestId: request?.id})
+        setElementLoading(false)
+    } })
 
-    const loading = elementLoading || clonePending || jobLoading || requestLoading || buildPending;
+
+    const loading = (elementLoading || clonePending || jobLoading || requestLoading || buildPending) && !jobData?.exists;
 
     async function connectWs() {
         try {
@@ -57,8 +62,8 @@ export default function page() {
     }
 
     const handlePersistent = useCallback((request: any) => {
-        build(request?.workspaceName)
-
+        const buildPromise = build(request?.workspaceName)
+        
     }, []);
 
     const handleCiCd = useCallback((data: any) => {
@@ -88,6 +93,7 @@ export default function page() {
         if (!clonePending && !jobLoading && !requestLoading && !buildPending) {
             setElementLoading(false);
         }
+
     }, [cloneData?.status]);
 
     useEffect(() => {
@@ -99,7 +105,7 @@ export default function page() {
     return (
         <div className="flex w-full justify-center h-full">
             <div className="md:w-[80%] max-w-[1200px] w-[90%] mt-[32px]" style={{ height: "calc(100vh - 60px)" }}>
-                <div className=" border-pink-500 h-[97%] overflow-y-auto">
+                <div className=" border-pink-500 h-[97%] overflow-y-auto" style={{ scrollbarWidth: "none" }}>
                     <Label className="text-2xl font-semibold">{workspaceName}</Label>
                     <div className="md:h-[45%] h-[45%] min-h-[45%]  flex md:flex-row flex-col gap-2">
 
@@ -186,7 +192,7 @@ export default function page() {
                                         </div>
                                     </div> */}
 
-                                    <div className="h-fit max-h-[310px] bg-[#1f1f1f] py-2 pl-2 overflow-y-auto rounded-sm text-white text-[15px]" ref={logViewerRef}>
+                                    <div className="h-fit bg-[#1f1f1f] py-2 pl-2 overflow-y-auto rounded-sm text-white text-[15px]" ref={logViewerRef}>
                                         <LogViewer
                                             data={logData}
                                             theme="dark"

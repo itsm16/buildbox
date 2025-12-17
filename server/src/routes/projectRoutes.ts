@@ -126,14 +126,14 @@ projectRouter.post("/project/quick-setup/:dirName", async (req, res) => {
         const buildOutput = await execInRunner(["sh", "-c", `cd ${folder} && ${analyzed?.build}`], jobId)
         }
 
-        // JobManager.send(jobId, { type: "info", data: "Fixing assets paths..." })
-        // await execInRunner([
-        //     "sh",
-        //     "-c",
-        //     `cd ${folder}/dist && \
-        //     grep -rl '"/assets/' . | xargs sed -i 's|"\/assets\/|"assets\/|g'; \
-        //     grep -rl "'/assets/" . | xargs sed -i "s|'\/assets\/|'assets\/|g"`
-        // ]);
+        JobManager.send(jobId, { type: "info", data: "Fixing assets paths..." })
+        await execInRunner([
+            "sh",
+            "-c",
+            `cd ${folder}/dist && \
+            grep -rl '"/assets/' . | xargs sed -i 's|"\/assets\/|"assets\/|g'; \
+            grep -rl "'/assets/" . | xargs sed -i "s|'\/assets\/|'assets\/|g"`
+        ]);
 
         if(analyzed?.start && analyzed?.scripts?.start){
             JobManager.send(jobId, { type: "info", data: "Starting project..." })
@@ -163,7 +163,7 @@ projectRouter.post("/project/createDir/:dirName", async (req, res)=>{
 
     try {
         const folder = `/workspace/${dirName}`
-        const container = docker.getContainer("sandbox-runner");
+        // const container = docker.getContainer("sandbox-runner");
         await execInRunner(["mkdir", "-p", folder])
         
         res.json({

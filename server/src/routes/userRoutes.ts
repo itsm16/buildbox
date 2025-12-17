@@ -4,9 +4,69 @@ import { execInRunner, JobManager } from '../helpers/helpers.js';
 
 export const userRouter = express.Router();
 
+//  user
+userRouter.get('/user/:id', async (req, res) => {
+    const userId = req.params.id;
+    if(!userId){
+        return res.status(400).json({ message: 'User not found' });
+    }
+
+    try {
+        const user = await prisma.user.findUnique({
+            where: {
+                id: userId
+            },
+            include:{
+                accounts:true,
+            }
+        })
+
+        if(!user){
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const account = user.accounts[0];
+
+        const userDetail = {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.image,
+            provider: account?.providerId,
+            loginType: account?.providerId
+        }
+
+        return res.status(200).json({
+            userDetail,
+            message: 'User found'
+        });
+    } catch (error) {
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+})
+
+userRouter.get("/user/:userId/jobs", async(req, res)=>{
+    const { userId } = req.params;
+    const jobs = await prisma.job.findMany({
+        where: {
+            request:{
+                userId: userId
+            }
+        }
+    })
+
+    res.json({
+        message: "Jobs fetched successfully",
+        jobs
+    })
+})
+
+
+// requests
 // putting static route before dynamic route to avoid conflict
 userRouter.post('/user/request', async (req, res) => {
-    const { workspaceName, url, repo, type, userId } = req.body;
+    const { data } = req.body;
+    const { workspaceName, url, repo, type, userId } = data;
 
     if(!workspaceName || !url || !type || !userId){
         return res.status(400).json({ message: 'Missing required fields' });
@@ -59,45 +119,17 @@ userRouter.get("/user/:userId/request/:workspaceName", async (req, res) => {
     }
 })
 
-userRouter.get('/user/:id', async (req, res) => {
-    const userId = req.params.id;
-    if(!userId){
-        return res.status(400).json({ message: 'User not found' });
-    }
 
-    try {
-        const user = await prisma.user.findUnique({
-            where: {
-                id: userId
-            },
-            include:{
-                accounts:true,
-            }
-        })
+// job
 
-        if(!user){
-            return res.status(404).json({ message: 'User not found' });
-        }
+userRouter.post("/user/job", async (req, res)=>{
+    const {data} = req.body;
+    const {requestId, previewUrl, cloneUrl, repository} = data;
 
-        const account = user.accounts[0];
+    const job = await prisma.job.create({data})
 
-        const userDetail = {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            image: user.image,
-            provider: account?.providerId,
-            loginType: account?.providerId
-        }
-
-        return res.status(200).json({
-            userDetail,
-            message: 'User found'
-        });
-    } catch (error) {
-        return res.status(500).json({ message: 'Internal server error' });
-    }
+    res.status(200).json({
+        message: 'Job created',
+        job
+    })
 })
-
-
-    

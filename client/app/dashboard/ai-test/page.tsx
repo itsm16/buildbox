@@ -30,9 +30,9 @@ export default function page() {
     const { data: session } = useSession();
     const user = session?.user;
     const userId = session?.session?.userId;
-    const { data: userDetail, isPending: getUserPending } = useQuery({queryFn: ()=> getUserById(user?.id as string),enabled: !!user, queryKey: ["user-detail"]})
-    const {data: userRepoData, isPending: userReposPending} = useQuery({queryFn: ()=> getUserRepos(user?.name as string), enabled: !!user, queryKey: ["user-repos"]})
-    const {mutate: createReq, isPending: createReqPending} = useMutation({mutationFn: createRequest})
+    const { data: userDetail, isPending: getUserPending } = useQuery({ queryFn: () => getUserById(user?.id as string), enabled: !!user, queryKey: ["user-detail"] })
+    const { data: userRepoData, isPending: userReposPending } = useQuery({ queryFn: () => getUserRepos(user?.name as string), enabled: !!user, queryKey: ["user-repos"] })
+    const { mutate: createReq, isPending: createReqPending } = useMutation({ mutationFn: createRequest })
 
     function handleGithubLogin() {
         const res = signInWithGithub()
@@ -43,7 +43,7 @@ export default function page() {
         const name = generateUsername();
 
         const workspaceName = `${name}-${jobId}`
-        const makeReq = createRequest({workspaceName, url: repoUrl, repo, type: "CI_CD", userId: userId as string})
+        const makeReq = createRequest({ workspaceName, url: repoUrl, repo, type: "CI_CD", userId: userId as string })
 
         redirect(`/dashboard/preview/${workspaceName}`)
     }
@@ -68,32 +68,39 @@ export default function page() {
                                         size={"sm"}
                                     >
                                         {
-                                            getUserPending ? <SpinnerText text="" /> 
-                                            :
-                                            userDetail?.userDetail && userDetail?.userDetail?.loginType === "github" ? <><IoLogoGithub />Github{getUserPending ? <SpinnerText text="" /> : <Check size={17} className="text-green-700 mx-2 font-semibold" />}</> : <><IoLogoGithub /> Connect Github</>
+                                            getUserPending ? <SpinnerText text="" />
+                                                :
+                                                userDetail?.userDetail && userDetail?.userDetail?.loginType === "github" ? <><IoLogoGithub />Github{getUserPending ? <SpinnerText text="" /> : <Check size={17} className="text-green-700 mx-2 font-semibold" />}</> : <><IoLogoGithub /> Connect Github</>
                                         }
                                     </Button></Label>
-                                <div className="h-full mt-1 overflow-y-auto border rounded-sm flex flex-col items-center gap-1">
-                                    {!(userReposPending)? 
-                                        userRepoData?.repos.map((repo : any)=>(
-                                            <div id={repo.id} key={repo.id} className="border-b py-1 h-12 w-[97%] flex px-2 items-center justify-between" 
-                                            onMouseOver={(e)=>{
-                                                const {id} = repo;
-                                                setHoveredRepo(id)
-                                                setRepoUrl(repo?.clone_url)
-                                                setRepo(repo?.name)
-                                            }} 
-                                            onMouseLeave={()=>setHoveredRepo(null)}>
-                                                <Label className="text-sm">{repo.name}</Label>
-                                                {hoveredRepo == repo.id && <Button
-                                                onClick={handleSelect} 
-                                                size="sm" variant="outline">Select</Button>}
-                                            </div>
-                                        ))
-                                     : 
-                                     <SpinnerText text="Loading repositories..."/>}
-                                    
-                                </div>
+                                {
+                                    userDetail?.userDetail?.loginType === "github"
+                                        ?
+                                    <div className="h-full mt-1 overflow-y-auto border rounded-sm flex flex-col items-center gap-1">
+
+                                        {
+                                            !(userReposPending) ?
+                                                userRepoData?.repos.map((repo: any) => (
+                                                    <div id={repo.id} key={repo.id} className="border-b py-1 h-12 w-[97%] flex px-2 items-center justify-between"
+                                                        onMouseOver={(e) => {
+                                                            const { id } = repo;
+                                                            setHoveredRepo(id)
+                                                            setRepoUrl(repo?.clone_url)
+                                                            setRepo(repo?.name)
+                                                        }}
+                                                        onMouseLeave={() => setHoveredRepo(null)}>
+                                                        <Label className="text-sm">{repo.name}</Label>
+                                                        {hoveredRepo == repo.id && <Button
+                                                            onClick={handleSelect}
+                                                            size="sm" variant="outline">Select</Button>}
+                                                    </div>
+                                                ))
+                                                :
+                                            <SpinnerText text="Loading repositories..." />
+                                        }
+
+                                    </div> : ""
+                                }
                             </div>
                             {/* Job Status */}
                             {/*

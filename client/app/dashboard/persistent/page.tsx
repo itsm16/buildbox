@@ -1,11 +1,12 @@
 "use client"
 import SpinnerText from "@/components/SpinnerText";
+import TableComponent from "@/components/Table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { generateShortId } from "@/helpers/helpers";
-import { connectToRunner, createDir, createRequest, getUserById, getUserJobs, getUserRepos, postRepoUrl } from "@/helpers/queries";
+import { connectToRunner, createDir, createRequest, getJobs, getUserById, getUserJobs, getUserRepos, postRepoUrl } from "@/helpers/queries";
 import { signInWithGithub, useSession } from "@/lib/auth-client";
 import { Label } from "@radix-ui/react-dropdown-menu";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -34,7 +35,7 @@ export default function page() {
     const user = data?.user;
     const userId: string = session?.userId!;
 
-    const { data: userJobs, isLoading: userJobsLoading } = useQuery({ queryFn: () => getUserJobs(userId), queryKey: ["user-jobs"] })
+    const { data: userJobs, isLoading: userJobsLoading } = useQuery({ queryFn: () => getJobs(user?.id as string), enabled: !!user, queryKey: ["user-jobs"] })
     const { data: userDetail, isPending: getUserPending } = useQuery({ queryFn: () => getUserById(user?.id as string), enabled: !!user, queryKey: ["user-detail"] })
     const { data: userRepoData, isPending: userReposPending } = useQuery({ queryFn: () => getUserRepos(user?.name as string), enabled: !!user, queryKey: ["user-repos"] })
     const { mutate: createReq, isPending: createReqPending } = useMutation({ mutationFn: createRequest })
@@ -54,7 +55,7 @@ export default function page() {
         const name = generateUsername();
 
         const workspaceName = `${name}-${jobId}`
-        const makeReq = createRequest({ workspaceName, url: repoUrl, repo, type: "CI_CD", userId: userId as string })
+        const makeReq = createRequest({ workspaceName, url: repoUrl, repo, type: "PERSISTENT", userId})
 
         redirect(`/dashboard/preview/${workspaceName}`)
     }
@@ -73,7 +74,7 @@ export default function page() {
                 </div>
                 <div className="flex flex-col gap-6 h-[90%]">
                     <div className="flex md:w-[80%] w-full h-[30%] gap-2">
-                        <div className="flex flex-col gap-2 w-[50%] ">
+                        <div className="flex flex-col gap-2 w-[50%]">
                             <Label className="font-normal text-md">Repository URL :</Label>
                             <Input
                                 value={repoUrl}
@@ -93,7 +94,7 @@ export default function page() {
                         <div className="flex flex-col gap-2 h-full w-[50%]">
                             <div className="h-[90%]">
                                 <Label className="font-normal text-md w-full flex justify-between">
-                                    <p>Select repository - </p>
+                                    {userDetail?.userDetail?.loginType === "github" ? <p>Select repository - </p>: ""}
                                     <Button
                                         onClick={handleGithubLogin}
                                         variant={"outline"}
@@ -105,8 +106,13 @@ export default function page() {
                                                 userDetail?.userDetail && userDetail?.userDetail?.loginType === "github" ? <><IoLogoGithub />Github{getUserPending ? <SpinnerText text="" /> : <Check size={17} className="text-green-700 mx-2 font-semibold" />}</> : <><IoLogoGithub /> Connect Github</>
                                         }
                                     </Button></Label>
+                                {
+                                userDetail?.userDetail?.loginType === "github" 
+                                ?
                                 <div className="h-full mt-1 overflow-y-auto border rounded-sm flex flex-col items-center gap-1">
-                                    {!(userReposPending) ?
+                                        
+                                    {
+                                        !(userReposPending) ?
                                         userRepoData?.repos.map((repo: any) => (
                                             <div id={repo.id} key={repo.id} className="border-b py-1 h-12 w-[97%] flex px-2 items-center justify-between"
                                                 onMouseOver={(e) => {
@@ -123,9 +129,11 @@ export default function page() {
                                             </div>
                                         ))
                                         :
-                                        <SpinnerText text="Loading repositories..." />}
+                                        <SpinnerText text="Loading repositories..." />
+                                    }
 
-                                </div>
+                                </div> : ""
+                                }
                             </div>
                             {/* Job Status */}
 
@@ -140,28 +148,7 @@ export default function page() {
 
                     {/* Previous */}
                     <div className=" w-full h-[70%] text-sm">
-                        <Table className="border">
-                            <TableCaption>Existing projects</TableCaption>
-                            <TableHeader>
-                                <TableRow className="bg-gray-100">
-                                    <TableHead className="w-[100px]">Name</TableHead>
-                                    <TableHead className="text-right">Open preview</TableHead>
-                                    <TableHead className="text-right">Delete</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {invoices.map((invoice) => (
-                                    <TableRow key={invoice.workspaceName}>
-                                        <TableCell className="font-medium"><Link className="underline" href={`/dashboard/preview/${invoice.workspaceName}`}>{invoice.workspaceName}</Link></TableCell>
-                                        <TableCell className="text-right">
-                                            <Button size={"sm"} onClick={() => window.open(previewUrl, "_blank")}>
-                                                <ExternalLink />
-                                            </Button></TableCell>
-                                        <TableCell className="text-right"><Button size={"sm"}><Trash /></Button></TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                        <TableComponent data={userJobs?.jobs} />
                     </div>
                 </div>
             </div>
