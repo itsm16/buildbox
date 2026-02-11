@@ -1,6 +1,9 @@
 
 <img width="1130" height="494" alt="image" src="https://github.com/user-attachments/assets/6c4d7aab-9a23-46cf-8fd5-e4c64bb11d12" />
-🚀 Current Features
+
+----
+
+🚀 Completed / Ongoing Work
 1. Quick & Persistent Sandbox
 
 🔹 Quick Sandbox
@@ -19,16 +22,10 @@ Access to detailed build logs
 
 Automatic rebuilds on repository updates via GitHub webhooks
 
-Keeps previews in sync with the latest code changes
-
 🔄 Planned Improvements / Upcoming Updates
 1. GitHub Actions Integration
 
 Automate project setup and build workflows
-
-Standardized CI/CD pipelines
-
-Improved deployment reliability
 
 2. Cloudflare R2 for Asset Storage
 
