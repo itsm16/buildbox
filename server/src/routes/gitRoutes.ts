@@ -32,10 +32,11 @@ gitRouter.get("/git/get-repos/:username", async (req, res) => {
             status: "success",
             repos: repos.data
         })
-    } catch (error) {
-        res.json({
+    } catch (error: any) {
+        res.status(502).json({
             status: "error",
-            error
+            repos: [],
+            message: error?.message ?? "Failed to fetch repositories",
         })
     }
 })
@@ -55,10 +56,10 @@ gitRouter.get("/git/repo/:username/:repo", async (req, res) => {
             status: "success",
             repositoryInfo: repository.data
         })
-    } catch (error) {
-        res.json({
+    } catch (error: any) {
+        res.status(502).json({
             status: "error",
-            error
+            message: error?.message ?? "Failed to fetch repository",
         })
     }
 })
@@ -81,18 +82,27 @@ gitRouter.post('/git/clone/:workspaceName', async (req, res) => {
         const workspaceExists = await execInRunner(["ls", folder])
 
         if (!workspaceExists.toLocaleLowerCase().includes("no such file or directory")) {
-            JobManager.send(jobId, { type: "error", data: 'Workspace already exists' })
+            // Reuse existing checkout instead of wiping it — pull latest.
+            JobManager.send(jobId, { type: "info", data: 'Workspace already exists, pulling latest...' })
+            await execInRunner(["sh", "-c", `cd ${folder} && git pull --ff-only`], jobId)
 
-            await execInRunner(["rm", `-rf`, folder])
+            return res.json({
+                status: "success",
+                reused: true,
+                jobId,
+                workspaceName,
+                folder,
+            })
         }
 
         JobManager.send(jobId, { type: "info", data: "Creating directory..." })
         const createDir = await execInRunner(["mkdir", "-p", folder], jobId)
 
-        const cloneOutput = await execInRunner(["git", "clone", url, folder])
+        const cloneOutput = await execInRunner(["git", "clone", url, folder], jobId)
 
         res.json({
             status: "success",
+            reused: false,
             jobId,
             workspaceName,
             folder,
@@ -116,7 +126,7 @@ gitRouter.post(
       crypto.createHmac("sha256", secret).update(req.body).digest("hex");
 
     if (signature !== expected) {
-      console.log("❌ Invalid signature");
+      console.log("Invalid signature");
       return res.status(401).send("Invalid signature");
     }
 

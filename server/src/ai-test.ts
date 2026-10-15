@@ -36,7 +36,7 @@ let prompt;
 if(type === "docker-ci-test"){ prompt = sysPrompts["docker-ci-test"] }
 
 const result = await generateText({
-  model: google('gemini-2.5-flash'),
+  model: google('gemini-3.5-flash-lite'),
   messages: [
     { role: "system" as const, content: prompt as string },
     { role: "user" as const, content: `${pkgText}\n\n${fileStructure}` }

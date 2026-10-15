@@ -51,5 +51,10 @@
     "typescript": "^5",
     "unique-username-generator": "^1.5.1",
     "uuid": "^13.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.11.1": true
   }
 }

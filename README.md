@@ -49,3 +49,29 @@ Reduces onboarding friction for beginners
 
 Speeds up project setup for rapid prototyping
 
+----
+
+## Env
+
+### Server (`server/.env`, loaded via `node --env-file=./.env`)
+
+| Var | Required | Used in | Purpose |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | Yes | `prisma/schema.prisma`, `src/prisma.config.ts` | Postgres connection (Prisma + app) |
+| `GEMINI_KEY` | Yes (AI features) | `src/index.ts` | Gemini API key for AI file generation |
+| `GITHUB_ID` | Yes (repo lookup) | `src/routes/gitRoutes.ts` | GitHub personal access token for Octokit repo APIs |
+| `GITHUB_WEBHOOK_SECRET` | Yes (webhooks) | `src/routes/gitRoutes.ts` | Validates `x-hub-signature-256` on push webhooks |
+| `NGROK_URL` | Yes (previews) | `src/routes/projectRoutes.ts` | Public base URL prefixed to `api/preview/:dirName` |
+| `PORT` | No (default `4000`) | `src/index.ts` | Server listen port |
+
+### Client (`client/.env.local`)
+
+| Var | Required | Used in | Purpose |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | Yes | `lib/auth.ts` | Same Postgres DB — better-auth session/account storage |
+| `GITHUB_CLIENT_ID` | Yes (GitHub login) | `lib/auth.ts` | GitHub OAuth app client ID |
+| `GITHUB_CLIENT_SECRET` | Yes (GitHub login) | `lib/auth.ts` | GitHub OAuth app client secret |
+| `NEXT_PUBLIC_API_BASE_URL` | No (default `http://localhost:4000`) | `helpers/queries.ts` | Server API base URL (+ WS URL derivation) |
+| `BETTER_AUTH_SECRET` | Yes (production) | better-auth (auto-read) | Session signing secret |
+| `BETTER_AUTH_URL` | Yes (production) | better-auth (auto-read) | Canonical app URL (e.g. `http://localhost:3000`) |
+

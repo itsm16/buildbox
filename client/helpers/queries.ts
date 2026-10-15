@@ -121,6 +121,16 @@ export async function postRepoUrl({ url, dirName }: { url: string, dirName: stri
     }
 }
 
+export async function deleteWorkspace(workspaceName : string) {
+    try {
+        const response = await axios.delete(`${API_BASE_URL}/api/project/workspace/${workspaceName}`)
+        return response.data
+    } catch (error) {
+        console.error('Error deleting workspace:', error);
+        throw error;
+    }
+}
+
 export async function createDir(dirName : string) {
     try {
         const response = await axios.post(`${API_BASE_URL}/api/project/createDir/${dirName}`)
@@ -161,12 +171,32 @@ export async function getSingleRepo({username, repo} : {username: string, repo: 
     }
 }
 
-export async function runBuild(workspaceName : string) {
+export async function runBuild(workspaceName : string, force?: boolean) {
     try {
-        const response = await axios.post(`${API_BASE_URL}/api/project/build`, { workspaceName })
+        const response = await axios.post(`${API_BASE_URL}/api/project/build`, { workspaceName, force: !!force })
         return response.data
     } catch (error) {
         console.error('Error building project:', error);
+        throw error;
+    }
+}
+
+export async function getWorkspaces() {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/api/project/workspaces`);
+        return response.data;
+    } catch (error) {
+        console.error('Error listing workspaces:', error);
+        throw error;
+    }
+}
+
+export async function generateAiFiles(workspaceName : string) {
+    try {
+        const response = await axios.post(`${API_BASE_URL}/api/project/ai/test`, { workspaceName })
+        return response.data
+    } catch (error) {
+        console.error('Error generating AI files:', error);
         throw error;
     }
 }

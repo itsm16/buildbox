@@ -202,8 +202,19 @@ export function generateRandomUsername() {
     return generateUsername('-')
 }
 
+export function stripAnsi(str: string): string {
+    // Remove ANSI color/control sequences + carriage returns
+    return str
+        .replace(/\x1B\[[0-9;]*[mGKHF]/g, "")
+        .replace(/\x1B\][^\x07]*\x07/g, "")
+        .replace(/\r/g, "")
+}
+
+const MAX_LOG_LINES = 500;
+
 export const JobManager = {
     clients: new Map<string, WebSocket>(),
+    logs: new Map<string, string[]>(),
 
     add(jobId: string, ws: WebSocket) {
         this.clients.set(jobId, ws)
@@ -214,9 +225,33 @@ export const JobManager = {
     },
 
     send(jobId: string, data: any) {
+        // Persist stripped log lines for revisit (tail) — skip empty `complete` events
+        if (data?.data) {
+            const clean = stripAnsi(String(data.data))
+            const lines = clean.split("\n").map(l => l.trimEnd()).filter(l => l.length > 0)
+            if (lines.length > 0) {
+                const prev = this.logs.get(jobId) ?? []
+                const next = [...prev, `[${data.type}] ${lines.join("\n")}`.slice(0, 2000)]
+                // keep flat per-line for easier tail slicing
+                const flat: string[] = []
+                for (const entry of next) {
+                    for (const l of entry.split("\n")) flat.push(l)
+                }
+                this.logs.set(jobId, flat.slice(-MAX_LOG_LINES))
+            }
+        }
         const ws = this.clients.get(jobId)
         if (!ws || ws.readyState !== ws.OPEN) return
         ws.send(JSON.stringify(data))
+    },
+
+    getLogs(jobId: string, tail = 150): string[] {
+        const all = this.logs.get(jobId) ?? []
+        return all.slice(-tail)
+    },
+
+    clearLogs(jobId: string) {
+        this.logs.delete(jobId)
     }
 }
 

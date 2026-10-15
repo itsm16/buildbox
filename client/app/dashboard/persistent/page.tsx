@@ -6,13 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { generateShortId } from "@/helpers/helpers";
-import { connectToRunner, createDir, createRequest, getJobs, getUserById, getUserJobs, getUserRepos, postRepoUrl } from "@/helpers/queries";
+import { connectToRunner, createDir, createRequest, deleteWorkspace, getJobs, getUserById, getUserJobs, getUserRepos, postRepoUrl } from "@/helpers/queries";
 import { signInWithGithub, useSession } from "@/lib/auth-client";
 import { Label } from "@radix-ui/react-dropdown-menu";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, ArrowRight, Check, ExternalLink, Trash } from 'lucide-react'
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { IoLogoGithub } from "react-icons/io";
 import { generateUsername } from "unique-username-generator";
@@ -24,8 +24,10 @@ const invoices = [
 ]
 
 
+const DEFAULT_TEST_REPO = "https://github.com/itsm16/postApp-ui.git";
+
 export default function page() {
-    const [repoUrl, setRepoUrl] = useState("");
+    const [repoUrl, setRepoUrl] = useState(DEFAULT_TEST_REPO);
     const [repo, setRepo] = useState("");
     const [hoveredRepo, setHoveredRepo] = useState<string | null>("");
     const [previewUrl, setPreviewUrl] = useState("");
@@ -35,29 +37,63 @@ export default function page() {
     const user = data?.user;
     const userId: string = session?.userId!;
 
+    const router = useRouter();
+    const queryClient = useQueryClient();
+    const [deletingName, setDeletingName] = useState<string | null>(null);
+
     const { data: userJobs, isLoading: userJobsLoading } = useQuery({ queryFn: () => getJobs(user?.id as string), enabled: !!user, queryKey: ["user-jobs"] })
     const { data: userDetail, isPending: getUserPending } = useQuery({ queryFn: () => getUserById(user?.id as string), enabled: !!user, queryKey: ["user-detail"] })
-    const { data: userRepoData, isPending: userReposPending } = useQuery({ queryFn: () => getUserRepos(user?.name as string), enabled: !!user, queryKey: ["user-repos"] })
-    const { mutate: createReq, isPending: createReqPending } = useMutation({ mutationFn: createRequest })
+    const isGithubConnected = userDetail?.userDetail?.loginType === "github" && !!user?.name;
+    const { data: userRepoData, isPending: userReposPending, isError: userReposError } = useQuery({ queryFn: () => getUserRepos(user?.name as string), enabled: isGithubConnected, queryKey: ["user-repos"] })
+    const { mutateAsync: createReqAsync, isPending: createReqPending } = useMutation({
+        mutationFn: createRequest,
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["user-jobs"] }),
+    })
+    const { mutateAsync: deleteWsAsync } = useMutation({
+        mutationFn: deleteWorkspace,
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["user-jobs"] }),
+    })
 
-    function handleCreate() {
+    function repoNameFromUrl(url: string) {
+        return url.split("/").pop()?.replace(/\.git$/, "") ?? "";
+    }
+
+    async function saveAndOpen(url: string, repoName: string) {
+        if (!url.trim()) {
+            setJobStatus("Enter a repository URL or pick one from GitHub first.");
+            return;
+        }
         const jobId = generateShortId();
         const name = generateUsername();
 
         const workspaceName = `${name}-${jobId}`
-        const makeReq = createReq({ workspaceName, url: repoUrl, repo, type: "PERSISTENT", userId })
+        try {
+            // Persist first so the preview page + table always find the request row.
+            await createReqAsync({ workspaceName, url, repo: repoName || repoNameFromUrl(url), type: "PERSISTENT", userId })
+            router.push(`/dashboard/preview/${workspaceName}`)
+        } catch {
+            setJobStatus("Failed to save. Check the server connection and try again.");
+        }
+    }
 
-        redirect(`/dashboard/preview/${workspaceName}`)
+    function handleCreate() {
+        saveAndOpen(repoUrl, repo);
     }
 
     function handleSelect() {
-        const jobId = generateShortId();
-        const name = generateUsername();
+        saveAndOpen(repoUrl, repo);
+    }
 
-        const workspaceName = `${name}-${jobId}`
-        const makeReq = createRequest({ workspaceName, url: repoUrl, repo, type: "PERSISTENT", userId})
-
-        redirect(`/dashboard/preview/${workspaceName}`)
+    async function handleDelete(workspaceName: string) {
+        if (!workspaceName || !confirm(`Delete ${workspaceName}? This removes the workspace and its build.`)) return;
+        setDeletingName(workspaceName);
+        try {
+            await deleteWsAsync(workspaceName);
+        } catch {
+            setJobStatus(`Failed to delete ${workspaceName}. Try again.`);
+        } finally {
+            setDeletingName(null);
+        }
     }
 
     function handleGithubLogin() {
@@ -83,10 +119,12 @@ export default function page() {
                             <div className="flex gap-7 items-center">
                                 <Button
                                     onClick={handleCreate}
+                                    disabled={createReqPending}
                                     className="flex items-center gap-2 w-[100px] text-sm"><ArrowRight />Create</Button>
 
-                                {createReqPending && <SpinnerText text="Creating directory..." />}
+                                {createReqPending && <SpinnerText text="Saving..." />}
                             </div>
+                            {jobStatus && <p className="text-sm text-red-600">{jobStatus}</p>}
                         </div>
 
                         <Separator orientation="vertical" className="mr-1"/>
@@ -112,8 +150,10 @@ export default function page() {
                                 <div className="h-full mt-1 overflow-y-auto border rounded-sm flex flex-col items-center gap-1">
                                         
                                     {
+                                        userReposError ?
+                                        <p className="text-sm text-red-600 py-2">Could not load repositories. Check the GitHub connection and try again.</p> :
                                         !(userReposPending) ?
-                                        userRepoData?.repos.map((repo: any) => (
+                                        (userRepoData?.repos ?? []).map((repo: any) => (
                                             <div id={repo.id} key={repo.id} className="border-b py-1 h-12 w-[97%] flex px-2 items-center justify-between"
                                                 onMouseOver={(e) => {
                                                     const { id } = repo;
@@ -148,7 +188,7 @@ export default function page() {
 
                     {/* Previous */}
                     <div className=" w-full h-[70%] text-sm">
-                        <TableComponent data={userJobs?.jobs} />
+                        <TableComponent data={userJobs?.jobs} onDelete={handleDelete} deletingName={deletingName} />
                     </div>
                 </div>
             </div>

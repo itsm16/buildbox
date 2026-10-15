@@ -52,6 +52,9 @@ userRouter.get("/user/:userId/jobs", async(req, res)=>{
             request:{
                 userId: userId
             }
+        },
+        include: {
+            request: true
         }
     })
 
@@ -124,7 +127,6 @@ userRouter.get("/user/:userId/request/:workspaceName", async (req, res) => {
 
 userRouter.post("/user/job", async (req, res)=>{
     const {data} = req.body;
-    const {requestId, previewUrl, cloneUrl, repository} = data;
 
     const job = await prisma.job.create({data})
 

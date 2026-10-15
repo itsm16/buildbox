@@ -36,5 +36,14 @@
     "unique-username-generator": "^1.5.1",
     "uuid": "^13.0.0",
     "ws": "^8.18.3"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.0": true,
+    "@prisma/engines@6.19.0": true,
+    "cpu-features@0.0.10": true,
+    "esbuild@0.25.12": true,
+    "prisma@6.19.0": true,
+    "protobufjs@7.5.4": true,
+    "ssh2@1.17.0": true
   }
 }

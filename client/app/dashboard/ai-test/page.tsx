@@ -1,143 +1,148 @@
 "use client"
 import SpinnerText from "@/components/SpinnerText";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { generateShortId } from "@/helpers/helpers";
-import { connectToRunner, createRequest, getUserById, getUserRepos } from "@/helpers/queries";
-import { signInWithGithub, useSession } from "@/lib/auth-client";
-import { Label } from "@radix-ui/react-dropdown-menu";
+import { generateAiFiles, getWorkspaces } from "@/helpers/queries";
+import { Label as RadixLabel } from "@radix-ui/react-dropdown-menu";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, ExternalLink, Trash } from 'lucide-react'
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { useEffect, useState } from "react";
-import { IoLogoGithub } from "react-icons/io";
-import { generateUsername } from "unique-username-generator";
+import MarkdownPreview from '@uiw/react-markdown-preview';
+import { Check, Copy, Download } from 'lucide-react'
+import { useState } from "react";
 
-const invoices = [
-    {
-        workspaceName: "green-lime-a23ef"
-    },
-]
+function downloadFile(filename: string, content: string) {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
 
+function FileCard({ title, filename, content }: { title: string, filename: string, content: string }) {
+    const [copied, setCopied] = useState(false);
+
+    function handleCopy() {
+        navigator.clipboard.writeText(content);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+    }
+
+    return (
+        <div className="mt-3">
+            <div className="flex items-center justify-between my-1">
+                <Label className="text-black">{title}</Label>
+                <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={handleCopy}>
+                        {copied ? <Check size={15} className="text-green-700" /> : <Copy size={15} />} Copy
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => downloadFile(filename, content)}>
+                        <Download size={15} /> {filename}
+                    </Button>
+                </div>
+            </div>
+            <MarkdownPreview
+                source={"```yaml\n" + content + "```"}
+                style={{ backgroundColor: "#1f1f1f", color: "white", borderRadius: "5px", padding: "10px" }}
+            />
+        </div>
+    );
+}
 
 export default function page() {
-    const [repoUrl, setRepoUrl] = useState("");
-    const [repo, setRepo] = useState("");
-    const [hoveredRepo, setHoveredRepo] = useState<string | null>("");
+    const [workspaceName, setWorkspaceName] = useState("");
 
-    const { data: session } = useSession();
-    const user = session?.user;
-    const userId = session?.session?.userId;
-    const { data: userDetail, isPending: getUserPending } = useQuery({ queryFn: () => getUserById(user?.id as string), enabled: !!user, queryKey: ["user-detail"] })
-    const { data: userRepoData, isPending: userReposPending } = useQuery({ queryFn: () => getUserRepos(user?.name as string), enabled: !!user, queryKey: ["user-repos"] })
-    const { mutate: createReq, isPending: createReqPending } = useMutation({ mutationFn: createRequest })
+    const { data: wsData, isPending: wsPending, isError: wsError, refetch: refetchWorkspaces } = useQuery({
+        queryFn: getWorkspaces,
+        queryKey: ["workspaces"],
+    });
+    const { mutate: generate, isPending: aiPending, data: aiData, error: aiError, reset: resetAi } = useMutation({
+        mutationFn: generateAiFiles,
+    });
 
-    function handleGithubLogin() {
-        const res = signInWithGithub()
+    const workspaces: { workspaceName: string, hasPackageJson: boolean }[] = wsData?.workspaces ?? [];
+    const selectable = workspaces.filter(w => w.hasPackageJson);
+
+    function handleGenerate() {
+        if (!workspaceName) return;
+        resetAi();
+        generate(workspaceName);
     }
 
-    function handleSelect() {
-        const jobId = generateShortId();
-        const name = generateUsername();
-
-        const workspaceName = `${name}-${jobId}`
-        const makeReq = createRequest({ workspaceName, url: repoUrl, repo, type: "CI_CD", userId: userId as string })
-
-        redirect(`/dashboard/preview/${workspaceName}`)
-    }
+    const aiOpinion = (aiData as any)?.aiOpinion;
+    const files = aiOpinion && !aiOpinion.raw ? [
+        aiOpinion.dockerfile && { title: "Dockerfile", filename: "Dockerfile", content: aiOpinion.dockerfile },
+        aiOpinion["docker-compose"] && { title: "Docker Compose", filename: "docker-compose.yml", content: aiOpinion["docker-compose"] },
+        aiOpinion["ci-cd"] && { title: "CI/CD", filename: "ci.yml", content: aiOpinion["ci-cd"] },
+        aiOpinion["nginx-conf"] && { title: "Nginx conf", filename: "nginx.conf", content: aiOpinion["nginx-conf"] },
+        aiOpinion["caddyfile"] && { title: "Caddyfile", filename: "Caddyfile", content: aiOpinion["caddyfile"] },
+    ].filter(Boolean) as { title: string, filename: string, content: string }[] : [];
 
     return (
         <div className="flex w-full justify-center h-full">
             <div className="md:w-[90%] lg:w-[90%] w-[90%] mt-[32px]" style={{ height: "calc(100vh - 60px)" }}>
                 <div className="">
-                    <Label className="font-semibold text-2xl mb-2">Generate</Label>
-                    <Label className="text-sm">get dockerfile, ci/cd for your project using AI</Label>
+                    <RadixLabel className="font-semibold text-2xl mb-2">Generate</RadixLabel>
+                    <RadixLabel className="text-sm">Pick a cloned project from the sandbox runner, get dockerfile + ci/cd for it using AI</RadixLabel>
                     <Separator className="my-4" />
                 </div>
-                <div className="flex flex-col gap-6 h-[90%]">
-                    <div className="flex flex-col md:w-[80%] lg:w-[50%] w-full h-[35%] gap-2">
-                        <div className="flex flex-col gap-2 h-full">
-                            <div className="h-[90%]">
-                                <Label className="font-normal text-md w-full flex justify-between">
-                                    <p>Select repository - </p>
-                                    <Button
-                                        onClick={handleGithubLogin}
-                                        variant={"outline"}
-                                        size={"sm"}
-                                    >
-                                        {
-                                            getUserPending ? <SpinnerText text="" />
-                                                :
-                                                userDetail?.userDetail && userDetail?.userDetail?.loginType === "github" ? <><IoLogoGithub />Github{getUserPending ? <SpinnerText text="" /> : <Check size={17} className="text-green-700 mx-2 font-semibold" />}</> : <><IoLogoGithub /> Connect Github</>
-                                        }
-                                    </Button></Label>
-                                {
-                                    userDetail?.userDetail?.loginType === "github"
-                                        ?
-                                    <div className="h-full mt-1 overflow-y-auto border rounded-sm flex flex-col items-center gap-1">
-
-                                        {
-                                            !(userReposPending) ?
-                                                userRepoData?.repos.map((repo: any) => (
-                                                    <div id={repo.id} key={repo.id} className="border-b py-1 h-12 w-[97%] flex px-2 items-center justify-between"
-                                                        onMouseOver={(e) => {
-                                                            const { id } = repo;
-                                                            setHoveredRepo(id)
-                                                            setRepoUrl(repo?.clone_url)
-                                                            setRepo(repo?.name)
-                                                        }}
-                                                        onMouseLeave={() => setHoveredRepo(null)}>
-                                                        <Label className="text-sm">{repo.name}</Label>
-                                                        {hoveredRepo == repo.id && <Button
-                                                            onClick={handleSelect}
-                                                            size="sm" variant="outline">Select</Button>}
-                                                    </div>
-                                                ))
-                                                :
-                                            <SpinnerText text="Loading repositories..." />
-                                        }
-
-                                    </div> : ""
-                                }
-                            </div>
-                            {/* Job Status */}
-                            {/*
-                                {jobStatus && (
-                                    <div className="flex flex-col md:w-[60%] w-full text-sm py-1">
-                                        <Label className="font-normal text-md">Status:</Label>
-                                        <div className="text-sm text-gray-600 flex">{jobStatus} {jobStatus && jobStatus === "Build completed" && <Check size={17} className="text-green-700 mx-2 font-semibold" />}</div>
-                                    </div>
-                                )} */}
+                <div className="flex flex-col gap-4 h-[90%] overflow-y-auto pb-8" style={{ scrollbarWidth: "none" }}>
+                    <div className="flex flex-col md:w-[80%] lg:w-[50%] w-full gap-2">
+                        <Label className="font-normal text-md">Sandbox workspace :</Label>
+                        {wsPending ? <SpinnerText text="Loading workspaces..." /> :
+                            wsError ? (
+                                <div className="flex flex-col gap-2">
+                                    <p className="text-sm text-red-600">Could not load workspaces from the runner.</p>
+                                    <Button size="sm" variant="outline" className="w-fit" onClick={() => refetchWorkspaces()}>Retry</Button>
+                                </div>
+                            ) : selectable.length === 0 ? (
+                                <p className="text-sm text-gray-600">No cloned projects in the runner yet. Build one from Quick or Persistent sandbox first.</p>
+                            ) : (
+                                <select
+                                    value={workspaceName}
+                                    onChange={(e) => setWorkspaceName(e.target.value)}
+                                    className="border rounded-md px-3 py-2 text-sm bg-white"
+                                >
+                                    <option value="">Select a workspace…</option>
+                                    {selectable.map((w) => (
+                                        <option key={w.workspaceName} value={w.workspaceName}>{w.workspaceName}</option>
+                                    ))}
+                                </select>
+                            )}
+                        <div className="flex gap-3 items-center">
+                            <Button
+                                onClick={handleGenerate}
+                                disabled={!workspaceName || aiPending}
+                                className="w-fit text-sm"
+                            >
+                                {aiPending ? "Generating..." : "Generate with AI"}
+                            </Button>
+                            {aiPending && <SpinnerText text="Asking Gemini..." />}
                         </div>
+                        {aiError && (
+                            <p className="text-sm text-red-600">
+                                Generation failed: {(aiError as any)?.response?.data?.message ?? (aiError as Error)?.message ?? "unknown error"}
+                            </p>
+                        )}
                     </div>
 
-                    {/* Previous */}
-                    <div className=" w-full h-[65%] text-sm">
-                        <Table className="border">
-                            <TableCaption>Existing projects</TableCaption>
-                            <TableHeader>
-                                <TableRow className="bg-gray-100">
-                                    <TableHead className="w-[100px]">Name</TableHead>
-                                    <TableHead className="text-right">Preview</TableHead>
-                                    <TableHead className="text-right">Delete</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {invoices.map((invoice) => (
-                                    <TableRow key={invoice.workspaceName}>
-                                        <TableCell className="font-medium"><Link className="underline" href={`/dashboard/preview/${invoice.workspaceName}`}>{invoice.workspaceName}</Link></TableCell>
-                                        <TableCell className="text-right">
-                                            <Button size={"sm"}>
-                                                <ExternalLink />
-                                            </Button></TableCell>
-                                        <TableCell className="text-right"><Button size={"sm"}><Trash /></Button></TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    {aiOpinion?.raw ? (
+                        <div className="w-full">
+                            <Label>Output</Label>
+                            <MarkdownPreview
+                                source={String(aiOpinion.raw).slice(0, 8000)}
+                                style={{ backgroundColor: "#1f1f1f", color: "white", borderRadius: "5px", padding: "10px" }}
+                            />
+                        </div>
+                    ) : files.length > 0 ? (
+                        <div className="w-full">
+                            <Label className="text-gray-500">Generated for {workspaceName}</Label>
+                            {files.map((f) => (
+                                <FileCard key={f.filename} title={f.title} filename={f.filename} content={f.content} />
+                            ))}
+                        </div>
+                    ) : null}
                 </div>
             </div>
         </div>

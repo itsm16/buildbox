@@ -10,8 +10,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Copy, ArrowRight, Check, ExternalLink } from 'lucide-react'
 import { useState } from "react";
 
-export default function RepoInput() {
-    const [repoUrl, setRepoUrl] = useState("");
+const DEFAULT_TEST_REPO = "https://github.com/itsm16/postApp-ui.git";
+
+export default function RepoInput({ initialUrl = DEFAULT_TEST_REPO }: { initialUrl?: string }) {
+    const [repoUrl, setRepoUrl] = useState(initialUrl);
     const [previewUrl, setPreviewUrl] = useState("");
     const [jobStatus, setJobStatus] = useState<string | null>(null);
 
@@ -19,10 +21,21 @@ export default function RepoInput() {
         mutationFn: connectToRunner,
     })
 
+    const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000").replace(/\/$/, "");
+
     const postUrl = useMutation({
         mutationFn: postRepoUrl,
         onSuccess: (data) => {
-            setPreviewUrl(data.previewUrl);
+            if (data?.skipped) {
+                setJobStatus("Build already exists, showing cached preview");
+            }
+            // Server returns absolute ngrok URL when configured, else a relative
+            // path — resolve the latter against the API base (persistent behavior).
+            const raw: string = data?.previewUrl ?? "";
+            setPreviewUrl(raw.startsWith("http") ? raw : `${apiBase}${raw.startsWith("/") ? "" : "/"}${raw}`);
+        },
+        onError: (error: any) => {
+            setJobStatus(`Failed: ${error?.response?.data?.message ?? error?.message ?? "unknown error"}`);
         }
     })
 
